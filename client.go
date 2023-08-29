@@ -1,8 +1,3 @@
-// Package geerpc 实现了一个简单的 RPC 客户端。
-// 此代码用于发起 RPC 调用，支持不同的传输协议和编解码器。
-// 使用不同的协议（例如 HTTP、TCP、Unix 套接字）连接到 RPC 服务器，并提供异步和同步调用方式。
-// 代码中还包含了连接超时、错误处理等功能。
-// 此代码遵循BSD-style许可证，版权归Go Authors所有。
 package geerpc
 
 import (
