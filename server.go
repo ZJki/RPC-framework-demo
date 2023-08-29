@@ -1,7 +1,3 @@
-// Package geerpc 实现了一个简单的 RPC 框架。
-// 代码中包含了服务端、客户端和测试代码。
-// 使用不同的编解码器（例如 JSON、Gob 等）实现了数据的传输和处理。
-// 此代码遵循BSD-style许可证，版权归Go Authors所有。
 package geerpc
 
 import (
