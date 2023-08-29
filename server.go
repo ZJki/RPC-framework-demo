@@ -37,6 +37,48 @@ var DefaultOption = &Option{
 	ConnectTimeout: time.Second * 10,
 }
 
+//令牌桶
+type TokenBucket struct {
+	tokens         int           // 当前令牌数量
+	capacity       int           // 令牌桶容量
+	refillAmount   int           // 每次填充的令牌数量
+	refillInterval time.Duration // 填充间隔
+	mu             sync.Mutex    // 互斥锁
+	lastRefill     time.Time     // 上次填充时间
+}
+
+func NewTokenBucket(capacity, refillAmount int, refillInterval time.Duration) *TokenBucket {
+	return &TokenBucket{
+		tokens:         capacity,
+		capacity:       capacity,
+		refillAmount:   refillAmount,
+		refillInterval: refillInterval,
+		lastRefill:     time.Now(), // 初始设置为当前时间
+	}
+}
+
+func (tb *TokenBucket) Allow() bool {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+
+	now := time.Now()
+	tokensToAdd := int(now.Sub(tb.lastRefill) / tb.refillInterval) * tb.refillAmount
+	if tokensToAdd > 0 {
+		tb.tokens = tb.tokens + tokensToAdd
+		if tb.tokens > tb.capacity {
+			tb.tokens = tb.capacity
+		}
+		tb.lastRefill = now
+	}
+
+	if tb.tokens > 0 {
+		tb.tokens--
+		return true
+	}
+
+	return false
+}
+
 // Server 表示一个 RPC 服务器
 type Server struct {
 	serviceMap sync.Map
@@ -77,7 +119,15 @@ var invalidRequest = struct{}{}
 func (server *Server) serveCodec(cc codec.Codec, opt *Option) {
 	sending := new(sync.Mutex) // 确保发送完整的响应
 	wg := new(sync.WaitGroup)  // 等待所有请求处理完成
+	tb := NewTokenBucket(10, 2, time.Second) // 创建令牌桶，每秒添加2个令牌
 	for {
+		// 检查令牌桶中是否有足够的令牌
+		if !tb.Allow() {
+			log.Println("rpc server: rate limit exceeded")
+			// Send error response indicating rate limit exceeded
+			server.sendResponse(cc, &codec.Header{ServiceMethod: ""}, "rate limit exceeded", sending)
+			continue
+		}
 		req, err := server.readRequest(cc)
 		if err != nil {
 			if req == nil {
